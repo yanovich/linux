@@ -406,6 +406,20 @@ config SERIAL_PXA_CONSOLE
 	  your boot loader (lilo or loadlin) about how to pass options to the
 	  kernel at boot time.)
 
+config SERIAL_PXA_TTYSA_NAME
+	bool "as /dev/ttySA[0-3]"
+	depends on SERIAL_PXA
+	default N
+	help
+	  If you have enabled the serial port on the Intel XScale PXA
+	  CPU you can make it appear as /dev/ttySA[0-3] in the system.
+
+	  If you say N here (default), the ports will use UART /dev/ttyS[0-3]
+	  names and corresponding major and minor devices numbers.
+
+	  If you say Y here, the ports will have SA-1100 style names and
+	  numbers. It is reqired at least for one PXA based device.
+
 config SERIAL_SA1100
 	bool "SA1100 serial port support"
 	depends on ARCH_SA1100

@@ -619,6 +619,20 @@ serial_pxa_type(struct uart_port *port)
 static struct uart_pxa_port *serial_pxa_ports[4];
 static struct uart_driver serial_pxa_reg;
 
+#ifndef CONFIG_SERIAL_PXA_TTYSA_NAME
+
+#define PXA_TTY_NAME	"ttyS"
+#define PXA_TTY_MAJOR	TTY_MAJOR
+#define PXA_TTY_MINOR	64
+
+#else
+
+#define PXA_TTY_NAME	"ttySA"
+#define PXA_TTY_MAJOR	204
+#define PXA_TTY_MINOR	5
+
+#endif
+
 #ifdef CONFIG_SERIAL_PXA_CONSOLE
 
 #define BOTH_EMPTY (UART_LSR_TEMT | UART_LSR_THRE)
@@ -778,7 +792,7 @@ serial_pxa_console_setup(struct console *co, char *options)
 }
 
 static struct console serial_pxa_console = {
-	.name		= "ttyS",
+	.name		= PXA_TTY_NAME,
 	.write		= serial_pxa_console_write,
 	.device		= uart_console_device,
 	.setup		= serial_pxa_console_setup,
@@ -819,9 +833,9 @@ struct uart_ops serial_pxa_pops = {
 static struct uart_driver serial_pxa_reg = {
 	.owner		= THIS_MODULE,
 	.driver_name	= "PXA serial",
-	.dev_name	= "ttyS",
-	.major		= TTY_MAJOR,
-	.minor		= 64,
+	.dev_name	= PXA_TTY_NAME
+	.major		= PXA_TTY_MAJOR,
+	.minor		= PXA_TTY_MINOR,
 	.nr		= 4,
 	.cons		= PXA_CONSOLE,
 };
