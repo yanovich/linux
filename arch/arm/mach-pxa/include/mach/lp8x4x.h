@@ -16,18 +16,18 @@
  * published by the Free Software Foundation.
  */
 
-#ifndef ASM_ARCH_MAINSTONE_H
-#define ASM_ARCH_MAINSTONE_H
+#ifndef ASM_ARCH_LP8X4X_H
+#define ASM_ARCH_LP8X4X_H
 
 #include <mach/irqs.h>
 
 #define LP8X4X_ETH0_BASE        (0x0c000000)
 #define LP8X4X_ETH0_IO          (0x0c004000)
-#define LP8X4X_ETH0_IRQ         41
+#define LP8X4X_ETH0_IRQ         PXA_GPIO_TO_IRQ(9)
 
 #define LP8X4X_ETH1_BASE        (0x0d000000)
 #define LP8X4X_ETH1_IO          (0x0d004000)
-#define LP8X4X_ETH1_IRQ         114
+#define LP8X4X_ETH1_IRQ         PXA_GPIO_TO_IRQ(82)
 
 #define LP8X4X_FPGA_PHYS	(0x17000000)
 #define LP8X4X_FPGA_VIRT	(0xf1000000)
