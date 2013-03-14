@@ -107,10 +107,12 @@ static struct flash_platform_data lp8x4x_flash_data[2] = {
 		.map_name	= "cfi_probe",
 		.parts		= lp8x4x_flash0_partitions,
 		.nr_parts	= ARRAY_SIZE(lp8x4x_flash0_partitions),
+		.width		= 4,
 	}, {
 		.map_name	= "cfi_probe",
 		.parts		= NULL,
 		.nr_parts	= 0,
+		.width		= 2,
 	}
 };
 
