@@ -82,6 +82,89 @@ static inline int ds1302_rxbit(void)
 	return !!(get_dp() & RTC_IODATA);
 }
 
+#elif defined(CONFIG_MACH_LP8X4X)
+
+#include <linux/hrtimer.h>
+#include <mach/lp8x4x.h>
+
+#define	RTC_CE		0x01
+#define	RTC_CLK		0x02
+#define	RTC_nWE		0x04
+#define	RTC_IODATA	0x08
+
+static unsigned long ds1302_state = 0;
+
+static inline int ds1302_hw_init(void)
+{
+	return 0;
+}
+
+static inline void ds1302_reset(void)
+{
+	ds1302_state = 0;
+	LP8X4X_RWRTC = ds1302_state;
+	nsleep (4000);
+}
+
+static inline void ds1302_clock(void)
+{
+	if ((ds1302_state & RTC_CE) == 0)
+		printk(KERN_ERR DRV_NAME ": trying CLK=1 with CE=0\n");
+	nsleep (1000);
+	ds1302_state |= RTC_CLK;
+	LP8X4X_RWRTC = ds1302_state;
+	nsleep (1000);
+	ds1302_state &= ~RTC_CLK;
+	LP8X4X_RWRTC = ds1302_state;
+}
+
+static inline void ds1302_start(void)
+{
+	ds1302_state &= ~RTC_CLK;
+	ds1302_state |= RTC_CE;
+	LP8X4X_RWRTC = ds1302_state;
+	nsleep (3000);
+}
+
+static inline void ds1302_stop(void)
+{
+	ds1302_state &= ~RTC_CE;
+	LP8X4X_RWRTC = ds1302_state;
+}
+
+static inline void ds1302_set_tx(void)
+{
+	ds1302_state &= ~RTC_nWE;
+	LP8X4X_RWRTC = ds1302_state;
+}
+
+static inline void ds1302_set_rx(void)
+{
+	ds1302_state |= RTC_nWE;
+	LP8X4X_RWRTC = ds1302_state;
+}
+
+static inline void ds1302_txbit(int bit)
+{
+	if ((ds1302_state & RTC_CE) == 0)
+		printk(KERN_ERR DRV_NAME ": trying TX with CE=0\n");
+	if ((ds1302_state & RTC_CLK) == 1)
+		printk(KERN_ERR DRV_NAME ": trying TX with CLK=1\n");
+	ds1302_state &= ~RTC_IODATA;
+	if (bit)
+		ds1302_state |= RTC_IODATA;
+	LP8X4X_RWRTC = ds1302_state;
+}
+
+static inline int ds1302_rxbit(void)
+{
+	if ((ds1302_state & RTC_CE) == 0)
+		printk(KERN_ERR DRV_NAME ": trying RX with CE=0\n");
+	if ((ds1302_state & RTC_CLK) == 1)
+		printk(KERN_ERR DRV_NAME ": trying RX with CLK=1\n");
+	return LP8X4X_RWRTC & 0x1;
+}
+
 #else
 #error "Add support for your platform"
 #endif

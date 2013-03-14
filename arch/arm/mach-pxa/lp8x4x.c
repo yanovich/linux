@@ -247,11 +247,17 @@ static struct platform_device lp8x4x_dm9000_device[2] = {
 	},
 };      
 
+static struct platform_device lp8x4x_ds1302_device = {
+	.name           = "rtc-ds1302",
+	.id             = 0,
+};      
+
 static struct platform_device *lp8x4x_devices[] __initdata = {
 	&lp8x4x_flash_device[0],
 	&lp8x4x_flash_device[1],
 	&lp8x4x_dm9000_device[0],
 	&lp8x4x_dm9000_device[1],
+	&lp8x4x_ds1302_device,
 };
 
 static struct pxaohci_platform_data mainstone_ohci_platform_data = {

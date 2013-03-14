@@ -42,7 +42,7 @@
 
 /* board level registers in the FPGA */
 
-#define LP8X4X_LEDDAT1		__LP8X4X_REG(0x08000010)
+#define LP8X4X_RWRTC		__LP8X4X_REG(0x1700901c)
 
 /* board specific IRQs */
 
