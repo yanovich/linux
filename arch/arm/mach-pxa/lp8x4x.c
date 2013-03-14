@@ -30,6 +30,7 @@
 #include <linux/dm9000.h>
 #include <linux/slab.h>
 #include <linux/leds.h>
+#include <linux/ktime.h>
 
 #include <asm/types.h>
 #include <asm/setup.h>
@@ -394,6 +395,17 @@ static int __init lp8x4x_leds_init(void)
  */
 fs_initcall(lp8x4x_leds_init);
 #endif
+
+void nsleep (unsigned long nanosec)
+{
+	ktime_t t = ns_to_ktime (nanosec);
+	long state = current->state;
+
+	__set_current_state (TASK_UNINTERRUPTIBLE);
+	schedule_hrtimeout (&t, HRTIMER_MODE_REL);
+	__set_current_state (state);
+}
+EXPORT_SYMBOL_GPL(nsleep);
 
 MACHINE_START(LP8X4X, "ICP DAS LP-8x4x programmable automation controller")
 	/* Maintainer: MontaVista Software Inc. */

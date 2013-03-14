@@ -66,4 +66,6 @@
 
 #define LP8X4X_NR_IRQS		(IRQ_BOARD_START + 16)
 
+extern void nsleep (unsigned long nanosec);
+
 #endif
