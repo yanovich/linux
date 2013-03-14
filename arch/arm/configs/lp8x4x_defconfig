@@ -1201,7 +1201,7 @@ CONFIG_W1_MASTER_GPIO=m
 # 1-wire Slaves
 #
 # CONFIG_W1_SLAVE_THERM is not set
-# CONFIG_W1_SLAVE_SMEM is not set
+CONFIG_W1_SLAVE_SMEM=m
 # CONFIG_W1_SLAVE_DS2408 is not set
 # CONFIG_W1_SLAVE_DS2423 is not set
 # CONFIG_W1_SLAVE_DS2431 is not set
@@ -1671,7 +1671,58 @@ CONFIG_CLKSRC_MMIO=y
 # CONFIG_PM_DEVFREQ is not set
 # CONFIG_EXTCON is not set
 # CONFIG_MEMORY is not set
-# CONFIG_IIO is not set
+CONFIG_IIO=m
+# CONFIG_IIO_BUFFER is not set
+# CONFIG_IIO_TRIGGER is not set
+CONFIG_LP8X4X_BUS=m
+
+#
+# Accelerometers
+#
+
+#
+# Analog to digital converters
+#
+
+#
+# Amplifiers
+#
+
+#
+# Hid Sensor IIO Common
+#
+
+#
+# Digital to analog converters
+#
+
+#
+# Frequency Synthesizers DDS/PLL
+#
+
+#
+# Clock Generator/Distribution
+#
+
+#
+# Phase-Locked Loop (PLL) frequency synthesizers
+#
+
+#
+# Digital gyroscope sensors
+#
+
+#
+# Inertial measurement units
+#
+
+#
+# Light sensors
+#
+
+#
+# Magnetometer sensors
+#
 # CONFIG_PWM is not set
 # CONFIG_IPACK_BUS is not set
 

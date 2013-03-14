@@ -11,6 +11,8 @@ industrialio-$(CONFIG_IIO_BUFFER_CB) += buffer_cb.o
 obj-$(CONFIG_IIO_TRIGGERED_BUFFER) += industrialio-triggered-buffer.o
 obj-$(CONFIG_IIO_KFIFO_BUF) += kfifo_buf.o
 
+obj-$(CONFIG_LP8X4X_BUS) += lp8x4x_bus.o
+
 obj-y += accel/
 obj-y += adc/
 obj-y += amplifiers/

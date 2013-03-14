@@ -60,6 +60,21 @@ config IIO_CONSUMERS_PER_TRIGGER
 	This value controls the maximum number of consumers that a
 	given trigger may handle. Default is 2.
 
+config LP8X4X_BUS
+       tristate "ICP DAS LP-8x4x extras"
+       depends on MACH_LP8X4X
+       select W1
+       select W1_MASTER_GPIO
+       select W1_SLAVE_SMEM
+       ---help---
+         This is a driver for ICP DAS LP-8x4x programmable automation
+         controller. It exposes a custom parallel bus. The bus services
+         hot-pluggable data acquisition and control modules.
+
+         If you plan to run this kernel on a LP-8x4x system, say Y or M
+         here.
+
+
 source "drivers/iio/accel/Kconfig"
 source "drivers/iio/adc/Kconfig"
 source "drivers/iio/amplifiers/Kconfig"
