@@ -1189,6 +1189,7 @@ CONFIG_GPIO_PXA=y
 # USB GPIO expanders:
 #
 CONFIG_W1=m
+CONFIG_W1_NOTIFY=y
 
 #
 # 1-wire Bus Masters

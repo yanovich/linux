@@ -66,6 +66,7 @@ config LP8X4X_BUS
        select W1
        select W1_MASTER_GPIO
        select W1_SLAVE_SMEM
+       select W1_NOTIFY
        ---help---
          This is a driver for ICP DAS LP-8x4x programmable automation
          controller. It exposes a custom parallel bus. The bus services
