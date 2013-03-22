@@ -25,17 +25,8 @@
 #include <asm/types.h>
 #include <linux/connector.h>
 
+#include <linux/w1.h>
 #include "w1.h"
-
-enum w1_netlink_message_types {
-	W1_SLAVE_ADD = 0,
-	W1_SLAVE_REMOVE,
-	W1_MASTER_ADD,
-	W1_MASTER_REMOVE,
-	W1_MASTER_CMD,
-	W1_SLAVE_CMD,
-	W1_LIST_MASTERS,
-};
 
 struct w1_netlink_msg
 {

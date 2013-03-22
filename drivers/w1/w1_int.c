@@ -179,6 +179,7 @@ int w1_add_master_device(struct w1_bus_master *master)
 	msg.id.mst.id = dev->id;
 	msg.type = W1_MASTER_ADD;
 	w1_netlink_send(dev, &msg);
+	w1_notify_add_master(dev);
 
 	return 0;
 
@@ -224,6 +225,7 @@ void __w1_remove_master_device(struct w1_master *dev)
 	msg.id.mst.id = dev->id;
 	msg.type = W1_MASTER_REMOVE;
 	w1_netlink_send(dev, &msg);
+	w1_notify_remove_master(dev);
 
 	w1_free_dev(dev);
 }

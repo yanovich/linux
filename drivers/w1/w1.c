@@ -709,6 +709,7 @@ static int w1_attach_slave_device(struct w1_master *dev, struct w1_reg_num *rn)
 	memcpy(msg.id.id, rn, sizeof(msg.id));
 	msg.type = W1_SLAVE_ADD;
 	w1_netlink_send(dev, &msg);
+	w1_notify_add_slave(sl);
 
 	return 0;
 }
@@ -728,6 +729,7 @@ void w1_slave_detach(struct w1_slave *sl)
 	memcpy(msg.id.id, &sl->reg_num, sizeof(msg.id));
 	msg.type = W1_SLAVE_REMOVE;
 	w1_netlink_send(sl->master, &msg);
+	w1_notify_remove_slave(sl);
 
 	device_remove_file(&sl->dev, &w1_slave_attr_id);
 	device_remove_file(&sl->dev, &w1_slave_attr_name);

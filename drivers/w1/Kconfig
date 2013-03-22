@@ -25,6 +25,13 @@ config W1_CON
 	  2. Userspace commands. Includes read/write and search/alarm search commands.
 	  3. Replies to userspace commands.
 
+config W1_NOTIFY
+	bool "Dallas's 1-wire device notifications"
+	default n
+	---help---
+	  This allows other parts of kernel to be notified of 1-wire hotplug
+	  events.
+
 source drivers/w1/masters/Kconfig
 source drivers/w1/slaves/Kconfig
 
