@@ -10,9 +10,11 @@
 #include <linux/io.h>
 #include <asm/proc-fns.h>
 #include <asm/system_misc.h>
+#include <asm/mach-types.h>
 
 #include <mach/regs-ost.h>
 #include <mach/reset.h>
+#include <mach/smemc.h>
 
 unsigned int reset_status;
 EXPORT_SYMBOL(reset_status);
@@ -76,6 +78,12 @@ static void do_gpio_reset(void)
 
 static void do_hw_reset(void)
 {
+	/* Switch off fast-bus and turbo mode */
+	asm volatile("mcr       p14, 0, %0, c6, c0, 0" : :
+			"r"(2));
+	/* SDRAM hangs on watchdog reset on Marvell PXA270 (erratum 71) */
+	if (machine_is_lp8x4x())
+		soft_restart(0);
 	/* Initialize the watchdog and let it fire */
 	writel_relaxed(OWER_WME, OWER);
 	writel_relaxed(OSSR_M3, OSSR);
