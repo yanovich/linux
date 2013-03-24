@@ -45,6 +45,7 @@ static void lp8x4x_noop_release(struct device *dev) {}
 
 #define LP8X4X_MAX_MODULE_COUNT		8
 static unsigned int lp8x4x_slot_count;
+static unsigned int lp8x4x_active_slot;
 
 static unsigned char lp8x4x_model[256] = {
 	   0,    0,    0, 0x11,    0, 0x18, 0x13, 0x11,
@@ -202,10 +203,45 @@ static ssize_t lp8x4x_slot_count_show(struct device *dev,
 
 static DEVICE_ATTR(slot_count, S_IRUGO, lp8x4x_slot_count_show, NULL);
 
+static ssize_t lp8x4x_active_slot_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", lp8x4x_active_slot);
+}
+
+static ssize_t
+lp8x4x_active_slot_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	unsigned int active_slot = 0;
+	char *pend;
+
+	if (!buf)
+		return count;
+	if (0 == count)
+		return count;
+
+	active_slot = simple_strtoul(buf, &pend, 10);
+	if (!active_slot || active_slot > lp8x4x_slot_count) {
+		dev_err(dev, "integer is out of range 1..%u\n",
+				lp8x4x_slot_count);
+		return count;
+	}
+
+	lp8x4x_active_slot = active_slot;
+
+	LP8X4X_ACTIVE_SLOT = (unsigned char) (1 << (active_slot - 1)) ^ 0xff;
+
+	return count;
+}
+
+static DEVICE_ATTR(active_slot, S_IRUGO | S_IWUSR,
+	       	lp8x4x_active_slot_show, lp8x4x_active_slot_store);
+
 static void lp8x4x_init_bus(struct device *device)
 {
 	int i, err;
-	unsigned long model;
+	unsigned long model, hex;
 
 	INIT_LIST_HEAD(&lp8x4x_bus.slots);
 	mutex_init(&lp8x4x_bus.mutex);
@@ -221,6 +257,23 @@ static void lp8x4x_init_bus(struct device *device)
 	printk(KERN_INFO MODULE_NAME ": up to %u modules\n", lp8x4x_slot_count);
 
 	err = device_create_file(&lp8x4x_bus.dev, &dev_attr_slot_count);
+	if (err < 0) {
+		printk(KERN_ERR MODULE_NAME ": device_create_file failed\n");
+		goto device_unreg;
+	}
+
+	hex = 0xffffffff ^ LP8X4X_ACTIVE_SLOT;
+	for (i = 0; i < lp8x4x_slot_count; i++) {
+		if ((hex & (1 << i)) == 0)
+			continue;
+		if (lp8x4x_active_slot) {
+			lp8x4x_active_slot = 0;
+			LP8X4X_ACTIVE_SLOT = 0xff;
+			break;
+		}
+		lp8x4x_active_slot = i + 1;
+	}
+	err = device_create_file(&lp8x4x_bus.dev, &dev_attr_active_slot);
 	if (err < 0) {
 		printk(KERN_ERR MODULE_NAME ": device_create_file failed\n");
 		goto device_unreg;

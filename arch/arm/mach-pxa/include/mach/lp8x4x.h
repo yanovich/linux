@@ -36,6 +36,7 @@
 
 #ifndef __ASSEMBLY__
 # define __LP8X4X_REG(x)	(*((volatile unsigned long *)LP8X4X_P2V(x)))
+# define __LP8X4X_REGB(x)	(*((volatile unsigned char *)LP8X4X_P2V(x)))
 # define __LP8X4X_MEM(x)	(*((volatile unsigned long *)(x)))
 #else
 # define __LP8X4X_REG(x)	LP8X4X_P2V(x)
@@ -44,6 +45,7 @@
 
 /* board level registers in the FPGA */
 
+#define LP8X4X_ACTIVE_SLOT	__LP8X4X_REGB(0x17009004)
 #define LP8X4X_RWRTC		__LP8X4X_REG(0x1700901c)
 #define LP8X4X_MOD_NUM		__LP8X4X_REG(0x17009046)
 
