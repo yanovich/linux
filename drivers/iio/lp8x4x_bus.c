@@ -126,6 +126,17 @@ struct lp8x4x_bus_device lp8x4x_bus = {
 	},
 };
 
+static ssize_t lp8x4x_model_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_module_device *mdev =
+		container_of(dev, struct lp8x4x_module_device, dev);
+
+	return sprintf(buf, "%u\n", mdev->model + 8000);
+}
+
+static DEVICE_ATTR(model, S_IRUGO, lp8x4x_model_show, NULL);
+
 static void lp8x4x_module_release(struct device *dev)
 {
 	struct lp8x4x_module_device *mdev =
@@ -149,6 +160,7 @@ static void lp8x4x_module_attach(int i, unsigned long model)
 	}
 
 	mdev->dev.id = i;
+	mdev->model = model;
 	mdev->dev.parent = &lp8x4x_bus.dev;
 	mdev->dev.bus = &lp8x4x_bus_type;
 	mdev->dev.release = &lp8x4x_module_release;
@@ -159,9 +171,20 @@ static void lp8x4x_module_attach(int i, unsigned long model)
 		return;
 	}
 
+	err = device_create_file(&mdev->dev, &dev_attr_model);
+	if (err < 0) {
+		dev_err(&lp8x4x_bus.dev,
+			       	"failed to create attr for slot %02i\n", i);
+		goto module_unreg;
+	}
+
 	mutex_lock(&lp8x4x_bus.mutex);
 	list_add_tail(&mdev->slot_entry, &lp8x4x_bus.slots);
 	mutex_unlock(&lp8x4x_bus.mutex);
+	return;
+
+module_unreg:
+	device_unregister(&mdev->dev);
 }
 
 /* Should hold mutex */
