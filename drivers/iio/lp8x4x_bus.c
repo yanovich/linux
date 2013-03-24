@@ -13,6 +13,8 @@
 #include <linux/w1.h>
 #include <linux/w1-gpio.h>
 #include <linux/platform_device.h>
+#include <linux/list.h>
+#include <linux/slab.h>
 
 #include <mach/mfp-pxa27x.h>
 #include <mach/lp8x4x.h>
@@ -25,6 +27,18 @@ MODULE_DESCRIPTION("ICP DAS LP-8x4x parallel bus driver");
 
 struct lp8x4x_module {
 	unsigned long		addr;
+};
+
+struct lp8x4x_module_device {
+	struct list_head        slot_entry;
+	unsigned int		model;
+	struct device		dev;
+};
+
+struct lp8x4x_bus_device {
+	struct mutex            mutex;
+	struct list_head        slots;
+	struct device		dev;
 };
 
 static void lp8x4x_noop_release(struct device *dev) {}
@@ -104,11 +118,58 @@ struct bus_type lp8x4x_bus_type = {
 	.match		= lp8x4x_match,
 };
 
-struct device lp8x4x_bus = {
-	.bus		= &lp8x4x_bus_type,
-	.init_name	= "icpdas1",
-	.release	= &lp8x4x_noop_release,
+struct lp8x4x_bus_device lp8x4x_bus = {
+	.dev		= {
+		.bus		= &lp8x4x_bus_type,
+		.init_name	= "backplane",
+		.release	= &lp8x4x_noop_release,
+	},
 };
+
+static void lp8x4x_module_release(struct device *dev)
+{
+	struct lp8x4x_module_device *mdev =
+		container_of(dev, struct lp8x4x_module_device, dev);
+
+	kfree(mdev);
+}
+
+static void lp8x4x_module_attach(int i, unsigned long model)
+{
+	int err;
+	struct lp8x4x_module_device *mdev;
+
+	printk(KERN_INFO MODULE_NAME ": found %lu in slot %i\n",
+			8000 + model, i + 1);
+
+	mdev = kzalloc(sizeof(*mdev), GFP_KERNEL);
+	if (!mdev) {
+		dev_err(&lp8x4x_bus.dev, "failed to allocate device\n");
+		return;
+	}
+
+	mdev->dev.id = i;
+	mdev->dev.parent = &lp8x4x_bus.dev;
+	mdev->dev.bus = &lp8x4x_bus_type;
+	mdev->dev.release = &lp8x4x_module_release;
+	dev_set_name(&mdev->dev, "slot%02i", i);
+	err = device_register(&mdev->dev);
+	if (err < 0) {
+		dev_err(&lp8x4x_bus.dev, "failed to register slot %02i\n", i);
+		return;
+	}
+
+	mutex_lock(&lp8x4x_bus.mutex);
+	list_add_tail(&mdev->slot_entry, &lp8x4x_bus.slots);
+	mutex_unlock(&lp8x4x_bus.mutex);
+}
+
+/* Should hold mutex */
+static void lp8x4x_module_detach(struct lp8x4x_module_device *mdev)
+{
+	list_del(&mdev->slot_entry);
+	device_unregister(&mdev->dev);
+}
 
 static ssize_t lp8x4x_slot_count_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -123,8 +184,11 @@ static void lp8x4x_init_bus(struct device *device)
 	int i, err;
 	unsigned long model;
 
-	lp8x4x_bus.parent = device;
-	err = device_register(&lp8x4x_bus);
+	INIT_LIST_HEAD(&lp8x4x_bus.slots);
+	mutex_init(&lp8x4x_bus.mutex);
+	lp8x4x_bus.dev.parent = device;
+
+	err = device_register(&lp8x4x_bus.dev);
 	if (err < 0) {
 		printk(KERN_ERR MODULE_NAME ": device_register failed\n");
 		return;
@@ -133,7 +197,7 @@ static void lp8x4x_init_bus(struct device *device)
 	lp8x4x_slot_count = LP8X4X_MOD_NUM & 0xff;
 	printk(KERN_INFO MODULE_NAME ": up to %u modules\n", lp8x4x_slot_count);
 
-	err = device_create_file(&lp8x4x_bus, &dev_attr_slot_count);
+	err = device_create_file(&lp8x4x_bus.dev, &dev_attr_slot_count);
 	if (err < 0) {
 		printk(KERN_ERR MODULE_NAME ": device_create_file failed\n");
 		goto device_unreg;
@@ -145,14 +209,13 @@ static void lp8x4x_init_bus(struct device *device)
 		if (!model)
 			continue;
 
-		printk(KERN_INFO MODULE_NAME ": found %lu in slot %i\n",
-			       8000 + model, i + 1);
+		lp8x4x_module_attach(i, model);
 	}
 	return;
 
 device_unreg:
-	device_unregister(&lp8x4x_bus);
-	lp8x4x_bus.parent = NULL;
+	device_unregister(&lp8x4x_bus.dev);
+	lp8x4x_bus.dev.parent = NULL;
 }
 
 static int lp8x4x_w1_notify(struct notifier_block *nb,
@@ -221,8 +284,15 @@ bus_unreg:
 
 static void __exit lp8x4x_bus_exit(void)
 {
-	if (lp8x4x_bus.parent)
-		device_unregister(&lp8x4x_bus);
+	struct lp8x4x_module_device *m, *mn;
+
+	if (lp8x4x_bus.dev.parent) {
+		mutex_lock(&lp8x4x_bus.mutex);
+		list_for_each_entry_safe(m, mn, &lp8x4x_bus.slots, slot_entry)
+			lp8x4x_module_detach(m);
+		mutex_unlock(&lp8x4x_bus.mutex);
+		device_unregister(&lp8x4x_bus.dev);
+	}
 	w1_unregister_notify(&lp8x4x_notifier);
 	platform_device_unregister(&lp8x4x_w1_master_device);
 	bus_unregister(&lp8x4x_bus_type);
