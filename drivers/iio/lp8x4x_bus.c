@@ -30,7 +30,7 @@ struct lp8x4x_module {
 static void lp8x4x_noop_release(struct device *dev) {}
 
 #define LP8X4X_MAX_MODULE_COUNT		8
-static unsigned int lp8x4x_mod_count;
+static unsigned int lp8x4x_slot_count;
 
 static unsigned char lp8x4x_model[256] = {
 	   0,    0,    0, 0x11,    0, 0x18, 0x13, 0x11,
@@ -94,21 +94,65 @@ struct lp8x4x_module lp8x4x_module[LP8X4X_MAX_MODULE_COUNT] = {
 	}
 };
 
-static void lp8x4x_init_bus(void)
+static int lp8x4x_match(struct device *dev, struct device_driver *drv)
 {
-	int i;
-	unsigned long model;
-	lp8x4x_mod_count = LP8X4X_MOD_NUM & 0xff;
-	printk(KERN_INFO MODULE_NAME ": %08x modules\n", lp8x4x_mod_count);
+	return 1;
+}
 
-	for (i = 0; i < lp8x4x_mod_count; i++) {
-		model = lp8x4x_model[__LP8X4X_MEM(lp8x4x_module[i].addr) & 0xff];
+struct bus_type lp8x4x_bus_type = {
+	.name		= "icpdas",
+	.match		= lp8x4x_match,
+};
+
+struct device lp8x4x_bus = {
+	.bus		= &lp8x4x_bus_type,
+	.init_name	= "icpdas1",
+	.release	= &lp8x4x_noop_release,
+};
+
+static ssize_t lp8x4x_slot_count_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", lp8x4x_slot_count);
+}
+
+static DEVICE_ATTR(slot_count, S_IRUGO, lp8x4x_slot_count_show, NULL);
+
+static void lp8x4x_init_bus(struct device *device)
+{
+	int i, err;
+	unsigned long model;
+
+	lp8x4x_bus.parent = device;
+	err = device_register(&lp8x4x_bus);
+	if (err < 0) {
+		printk(KERN_ERR MODULE_NAME ": device_register failed\n");
+		return;
+	}
+
+	lp8x4x_slot_count = LP8X4X_MOD_NUM & 0xff;
+	printk(KERN_INFO MODULE_NAME ": up to %u modules\n", lp8x4x_slot_count);
+
+	err = device_create_file(&lp8x4x_bus, &dev_attr_slot_count);
+	if (err < 0) {
+		printk(KERN_ERR MODULE_NAME ": device_create_file failed\n");
+		goto device_unreg;
+	}
+
+	for (i = 0; i < lp8x4x_slot_count; i++) {
+		model = lp8x4x_model[__LP8X4X_MEM(lp8x4x_module[i].addr)
+		       	& 0xff];
 		if (!model)
 			continue;
 
 		printk(KERN_INFO MODULE_NAME ": found %lu in slot %i\n",
 			       8000 + model, i + 1);
 	}
+	return;
+
+device_unreg:
+	device_unregister(&lp8x4x_bus);
+	lp8x4x_bus.parent = NULL;
 }
 
 static int lp8x4x_w1_notify(struct notifier_block *nb,
@@ -130,7 +174,7 @@ static int lp8x4x_w1_notify(struct notifier_block *nb,
 	system_serial_low = (unsigned int) (id & 0xFFFFFFFF);
 	printk(KERN_INFO MODULE_NAME ": LP-8x4x serial %016llx\n", id);
 
-	lp8x4x_init_bus();
+	lp8x4x_init_bus(&sl->dev);
 	return NOTIFY_DONE;
 }
 
@@ -154,16 +198,34 @@ struct notifier_block lp8x4x_notifier = {
 
 static int __init lp8x4x_bus_init(void)
 {
-	platform_device_register(&lp8x4x_w1_master_device);
+	int err;
+
+	err = bus_register(&lp8x4x_bus_type);
+	if (err < 0)
+		return err;
+
+	err = platform_device_register(&lp8x4x_w1_master_device);
+	if (err < 0)
+		goto bus_unreg;
+
 	w1_register_notify(&lp8x4x_notifier);
+
 	printk(KERN_INFO MODULE_NAME ": loaded\n");
 	return 0;
+
+bus_unreg:
+	bus_unregister(&lp8x4x_bus_type);
+
+	return err;
 }
 
 static void __exit lp8x4x_bus_exit(void)
 {
+	if (lp8x4x_bus.parent)
+		device_unregister(&lp8x4x_bus);
 	w1_unregister_notify(&lp8x4x_notifier);
 	platform_device_unregister(&lp8x4x_w1_master_device);
+	bus_unregister(&lp8x4x_bus_type);
 	printk(KERN_INFO MODULE_NAME ": unloaded\n");
 }
 
