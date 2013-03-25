@@ -32,8 +32,10 @@ struct lp8x4x_module {
 struct lp8x4x_module_device {
 	struct list_head        slot_entry;
 	unsigned int		model;
-	u32			status;
-	unsigned int		status_len;
+	u32			input;
+	unsigned int		input_len;
+	u32			output;
+	unsigned int		output_len;
 	struct device		dev;
 };
 
@@ -140,12 +142,40 @@ static ssize_t lp8x4x_model_show(struct device *dev,
 
 static DEVICE_ATTR(model, S_IRUGO, lp8x4x_model_show, NULL);
 
+static void lp8x4x_m41_get_data(struct lp8x4x_module_device *mdev)
+{
+	int i;
+	unsigned int b;
+
+	mdev->input = 0x0;
+	for (i = 1; i <= mdev->input_len; i++) {
+		b = __LP8X4X_MEMB(lp8x4x_module[mdev->dev.id].addr + 2 * i);
+		mdev->input += (b & 0xff) << ((i - 1) * 8);
+	}
+}
+
+static ssize_t lp8x4x_input_status_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_module_device *mdev =
+		container_of(dev, struct lp8x4x_module_device, dev);
+
+	lp8x4x_m41_get_data(mdev);
+
+	if (mdev->input_len == 4)
+		return sprintf(buf, "%08x\n", mdev->input);
+
+	return sprintf(buf, "%04x\n", mdev->input);
+}
+
+static DEVICE_ATTR(input_status, S_IRUGO, lp8x4x_input_status_show, NULL);
+
 static void lp8x4x_m41_set_data(struct lp8x4x_module_device *mdev)
 {
 	int i;
 	unsigned int b;
-	for (i = 0; i < mdev->status_len; i++) {
-		b = (mdev->status >> (i * 8)) & 0xff;
+	for (i = 0; i < mdev->output_len; i++) {
+		b = (mdev->output >> (i * 8)) & 0xff;
 		__LP8X4X_MEMB(lp8x4x_module[mdev->dev.id].addr + 2 * i) = b;
 	}
 }
@@ -155,10 +185,10 @@ static ssize_t lp8x4x_output_status_show(struct device *dev,
 {
 	struct lp8x4x_module_device *mdev =
 		container_of(dev, struct lp8x4x_module_device, dev);
-	if (mdev->status_len == 4)
-		return sprintf(buf, "%08x\n", mdev->status);
+	if (mdev->output_len == 4)
+		return sprintf(buf, "%08x\n", mdev->output);
 
-	return sprintf(buf, "%04x\n", mdev->status);
+	return sprintf(buf, "%04x\n", mdev->output);
 }
 
 static ssize_t lp8x4x_output_status_store(struct device *dev,
@@ -173,7 +203,7 @@ static ssize_t lp8x4x_output_status_store(struct device *dev,
 	if (0 == count)
 		return count;
 
-	mdev->status = simple_strtoul(buf, &pend, 16);
+	mdev->output = simple_strtoul(buf, &pend, 16);
 
 	lp8x4x_m41_set_data(mdev);
 
@@ -225,8 +255,8 @@ static void lp8x4x_module_attach(int i, unsigned long model)
 	}
 
 	if (model == 41) {
-		mdev->status_len = 4;
-		mdev->status = 0;
+		mdev->output_len = 4;
+		mdev->output = 0;
 		lp8x4x_m41_set_data(mdev);
 		err = device_create_file(&mdev->dev, &dev_attr_output_status);
 		if (err < 0) {
@@ -239,9 +269,10 @@ static void lp8x4x_module_attach(int i, unsigned long model)
 	}
 
 	if (model == 42) {
-		mdev->status_len = 2;
-		mdev->status = 0;
+		mdev->output_len = 2;
+		mdev->output = 0;
 		lp8x4x_m41_set_data(mdev);
+		mdev->input_len = 2;
 		err = device_create_file(&mdev->dev, &dev_attr_output_status);
 		if (err < 0) {
 			dev_err(&lp8x4x_bus.dev,
@@ -250,6 +281,13 @@ static void lp8x4x_module_attach(int i, unsigned long model)
 			goto module_unreg;
 		}
 
+		err = device_create_file(&mdev->dev, &dev_attr_input_status);
+		if (err < 0) {
+			dev_err(&lp8x4x_bus.dev,
+					"failed to create attr for"
+					" slot %02i\n", i);
+			goto module_unreg;
+		}
 	}
 
 	mutex_lock(&lp8x4x_bus.mutex);
