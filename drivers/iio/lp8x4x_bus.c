@@ -32,6 +32,8 @@ struct lp8x4x_module {
 struct lp8x4x_module_device {
 	struct list_head        slot_entry;
 	unsigned int		model;
+	u32			status;
+	unsigned int		status_len;
 	struct device		dev;
 };
 
@@ -138,6 +140,49 @@ static ssize_t lp8x4x_model_show(struct device *dev,
 
 static DEVICE_ATTR(model, S_IRUGO, lp8x4x_model_show, NULL);
 
+static void lp8x4x_m41_set_data(struct lp8x4x_module_device *mdev)
+{
+	int i;
+	unsigned int b;
+	for (i = 0; i < mdev->status_len; i++) {
+		b = (mdev->status >> (i * 8)) & 0xff;
+		__LP8X4X_MEMB(lp8x4x_module[mdev->dev.id].addr + 2 * i) = b;
+	}
+}
+
+static ssize_t lp8x4x_output_status_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_module_device *mdev =
+		container_of(dev, struct lp8x4x_module_device, dev);
+	if (mdev->status_len == 4)
+		return sprintf(buf, "%08x\n", mdev->status);
+
+	return sprintf(buf, "%04x\n", mdev->status);
+}
+
+static ssize_t lp8x4x_output_status_store(struct device *dev,
+	       	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct lp8x4x_module_device *mdev =
+		container_of(dev, struct lp8x4x_module_device, dev);
+	char *pend;
+
+	if (!buf)
+		return count;
+	if (0 == count)
+		return count;
+
+	mdev->status = simple_strtoul(buf, &pend, 16);
+
+	lp8x4x_m41_set_data(mdev);
+
+	return count;
+}
+
+static DEVICE_ATTR(output_status, S_IRUGO | S_IWUSR,
+	       	lp8x4x_output_status_show, lp8x4x_output_status_store);
+
 static void lp8x4x_module_release(struct device *dev)
 {
 	struct lp8x4x_module_device *mdev =
@@ -170,13 +215,41 @@ static void lp8x4x_module_attach(int i, unsigned long model)
 	if (err < 0) {
 		dev_err(&lp8x4x_bus.dev, "failed to register slot %02i\n", i);
 		return;
-	}
+	 }
 
 	err = device_create_file(&mdev->dev, &dev_attr_model);
 	if (err < 0) {
 		dev_err(&lp8x4x_bus.dev,
 			       	"failed to create attr for slot %02i\n", i);
 		goto module_unreg;
+	}
+
+	if (model == 41) {
+		mdev->status_len = 4;
+		mdev->status = 0;
+		lp8x4x_m41_set_data(mdev);
+		err = device_create_file(&mdev->dev, &dev_attr_output_status);
+		if (err < 0) {
+			dev_err(&lp8x4x_bus.dev,
+					"failed to create attr for"
+					" slot %02i\n", i);
+			goto module_unreg;
+		}
+
+	}
+
+	if (model == 42) {
+		mdev->status_len = 2;
+		mdev->status = 0;
+		lp8x4x_m41_set_data(mdev);
+		err = device_create_file(&mdev->dev, &dev_attr_output_status);
+		if (err < 0) {
+			dev_err(&lp8x4x_bus.dev,
+					"failed to create attr for"
+					" slot %02i\n", i);
+			goto module_unreg;
+		}
+
 	}
 
 	mutex_lock(&lp8x4x_bus.mutex);
