@@ -15,6 +15,7 @@
 #include <linux/platform_device.h>
 #include <linux/list.h>
 #include <linux/slab.h>
+#include <linux/gpio.h>
 
 #include <mach/mfp-pxa27x.h>
 #include <mach/lp8x4x.h>
@@ -35,6 +36,7 @@ struct lp8x4x_module_device {
 	u32			input;
 	unsigned int		input_len;
 	u32			output;
+	u32			analog;
 	unsigned int		output_len;
 	struct device		dev;
 };
@@ -142,6 +144,48 @@ static ssize_t lp8x4x_model_show(struct device *dev,
 
 static DEVICE_ATTR(model, S_IRUGO, lp8x4x_model_show, NULL);
 
+static void lp8x4x_m24_set_data(struct lp8x4x_module_device *mdev)
+{
+	unsigned int b;
+
+	b = mdev->analog & 0xff;
+	__LP8X4X_MEMB(lp8x4x_module[mdev->dev.id].addr + 2) = b;
+
+	b = (mdev->analog >> 8) & 0xff;
+	__LP8X4X_MEMB(lp8x4x_module[mdev->dev.id].addr + 4) = b;
+}
+
+static ssize_t lp8x4x_analog_output_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_module_device *mdev =
+		container_of(dev, struct lp8x4x_module_device, dev);
+
+	return sprintf(buf, "0x%04x\n", mdev->analog);
+}
+
+static ssize_t lp8x4x_analog_output_store(struct device *dev,
+	       	struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct lp8x4x_module_device *mdev =
+		container_of(dev, struct lp8x4x_module_device, dev);
+	char *pend;
+
+	if (!buf)
+		return count;
+	if (0 == count)
+		return count;
+
+	mdev->analog = simple_strtoul(buf, &pend, 16);
+
+	lp8x4x_m24_set_data(mdev);
+
+	return count;
+}
+
+static DEVICE_ATTR(analog_output, S_IRUGO | S_IWUSR,
+	       	lp8x4x_analog_output_show, lp8x4x_analog_output_store);
+
 static void lp8x4x_m41_get_data(struct lp8x4x_module_device *mdev)
 {
 	int i;
@@ -150,6 +194,7 @@ static void lp8x4x_m41_get_data(struct lp8x4x_module_device *mdev)
 	mdev->input = 0x0;
 	for (i = 1; i <= mdev->input_len; i++) {
 		b = __LP8X4X_MEMB(lp8x4x_module[mdev->dev.id].addr + 2 * i);
+		b ^= 0xff;
 		mdev->input += (b & 0xff) << ((i - 1) * 8);
 	}
 }
@@ -163,9 +208,9 @@ static ssize_t lp8x4x_input_status_show(struct device *dev,
 	lp8x4x_m41_get_data(mdev);
 
 	if (mdev->input_len == 4)
-		return sprintf(buf, "%08x\n", mdev->input);
+		return sprintf(buf, "0x%08x\n", mdev->input);
 
-	return sprintf(buf, "%04x\n", mdev->input);
+	return sprintf(buf, "0x%04x\n", mdev->input);
 }
 
 static DEVICE_ATTR(input_status, S_IRUGO, lp8x4x_input_status_show, NULL);
@@ -186,9 +231,9 @@ static ssize_t lp8x4x_output_status_show(struct device *dev,
 	struct lp8x4x_module_device *mdev =
 		container_of(dev, struct lp8x4x_module_device, dev);
 	if (mdev->output_len == 4)
-		return sprintf(buf, "%08x\n", mdev->output);
+		return sprintf(buf, "0x%08x\n", mdev->output);
 
-	return sprintf(buf, "%04x\n", mdev->output);
+	return sprintf(buf, "0x%04x\n", mdev->output);
 }
 
 static ssize_t lp8x4x_output_status_store(struct device *dev,
@@ -240,7 +285,7 @@ static void lp8x4x_module_attach(int i, unsigned long model)
 	mdev->dev.parent = &lp8x4x_bus.dev;
 	mdev->dev.bus = &lp8x4x_bus_type;
 	mdev->dev.release = &lp8x4x_module_release;
-	dev_set_name(&mdev->dev, "slot%02i", i);
+	dev_set_name(&mdev->dev, "slot%02i", i + 1);
 	err = device_register(&mdev->dev);
 	if (err < 0) {
 		dev_err(&lp8x4x_bus.dev, "failed to register slot %02i\n", i);
@@ -252,6 +297,22 @@ static void lp8x4x_module_attach(int i, unsigned long model)
 		dev_err(&lp8x4x_bus.dev,
 			       	"failed to create attr for slot %02i\n", i);
 		goto module_unreg;
+	}
+
+	if (model == 24) {
+		mdev->output_len = 0;
+		mdev->output = 0;
+		err = device_create_file(&mdev->dev, &dev_attr_analog_output);
+		if (err < 0) {
+			dev_err(&lp8x4x_bus.dev,
+					"failed to create attr for"
+					" slot %02i\n", i);
+			goto module_unreg;
+		}
+		__LP8X4X_MEMB(lp8x4x_module[mdev->dev.id].addr) = 0x00;
+		nsleep(450);
+		__LP8X4X_MEMB(lp8x4x_module[mdev->dev.id].addr) = 0xff;
+
 	}
 
 	if (model == 41) {
@@ -349,6 +410,37 @@ lp8x4x_active_slot_store(struct device *dev, struct device_attribute *attr,
 static DEVICE_ATTR(active_slot, S_IRUGO | S_IWUSR,
 	       	lp8x4x_active_slot_show, lp8x4x_active_slot_store);
 
+static ssize_t lp8x4x_reset_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%u\n", 0);
+}
+
+static ssize_t
+lp8x4x_reset_store(struct device *dev, struct device_attribute *attr,
+		const char *buf, size_t count)
+{
+	unsigned int flag = 0;
+	char *pend;
+
+	if (!buf)
+		return count;
+	if (0 == count)
+		return count;
+
+	flag = simple_strtoul(buf, &pend, 10);
+	if (!flag)
+		return count;
+
+	LP8X4X_STATUS = ~0x6b;
+	gpio_set_value(53, !gpio_get_value(53));
+
+	return count;
+}
+
+static DEVICE_ATTR(reset, S_IRUGO | S_IWUSR,
+	       	lp8x4x_reset_show, lp8x4x_reset_store);
+
 static void lp8x4x_init_bus(struct device *device)
 {
 	int i, err;
@@ -385,6 +477,12 @@ static void lp8x4x_init_bus(struct device *device)
 		lp8x4x_active_slot = i + 1;
 	}
 	err = device_create_file(&lp8x4x_bus.dev, &dev_attr_active_slot);
+	if (err < 0) {
+		printk(KERN_ERR MODULE_NAME ": device_create_file failed\n");
+		goto device_unreg;
+	}
+
+	err = device_create_file(&lp8x4x_bus.dev, &dev_attr_reset);
 	if (err < 0) {
 		printk(KERN_ERR MODULE_NAME ": device_create_file failed\n");
 		goto device_unreg;
