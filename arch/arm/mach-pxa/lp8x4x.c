@@ -56,6 +56,131 @@
 #include "generic.h"
 #include "devices.h"
 
+static unsigned char lp8x4x_irq_sys_enabled = 0;
+static unsigned char lp8x4x_irq_high_enabled = 0;
+
+static void lp8x4x_ack_irq(struct irq_data *d)
+{
+	int irq = d->irq - IRQ_BOARD_START;
+	if (irq < 0 || irq > 15) {
+		printk(KERN_ERR "wrong irq handler for irq %i\n", d->irq);
+		return;
+	}
+
+	if (irq < 8) {
+		LP8X4X_CLRHILVINT |= 1 << irq;
+	} else if (irq < 13) {
+		irq -= 8;
+		LP8X4X_SECOINT |= 1 << irq;
+	} else {
+		irq -= 8;
+		LP8X4X_PRIMINT |= 1 << irq;
+	}
+}
+
+static void lp8x4x_mask_irq(struct irq_data *d)
+{
+	int irq = d->irq - IRQ_BOARD_START;
+	if (irq < 0 || irq > 15) {
+		printk(KERN_ERR "wrong irq handler for irq %i\n", d->irq);
+		return;
+	}
+
+	if (irq < 8) {
+		lp8x4x_irq_high_enabled &= ~(1 << irq);
+		LP8X4X_ENHILVINT = lp8x4x_irq_high_enabled;
+	} else {
+		irq -= 8;
+		lp8x4x_irq_sys_enabled &= ~(1 << irq);
+		LP8X4X_ENSYSINT = lp8x4x_irq_sys_enabled;
+	}
+}
+
+static void lp8x4x_unmask_irq(struct irq_data *d)
+{
+	int irq = d->irq - IRQ_BOARD_START;
+	if (irq < 0 || irq > 15) {
+		printk(KERN_ERR "wrong irq handler for irq %i\n", d->irq);
+		return;
+	}
+
+	if (irq < 8) {
+		lp8x4x_irq_high_enabled |= 1 << irq;
+		LP8X4X_CLRHILVINT |= 1 << irq;
+		LP8X4X_ENHILVINT = lp8x4x_irq_high_enabled;
+	} else if (irq < 13) {
+		irq -= 8;
+		lp8x4x_irq_sys_enabled |= 1 << irq;
+		LP8X4X_SECOINT |= 1 << irq;
+		LP8X4X_ENSYSINT |= 1 << irq;
+	} else {
+		irq -= 8;
+		lp8x4x_irq_sys_enabled |= 1 << irq;
+		LP8X4X_SECOINT |= 1 << irq;
+		LP8X4X_PRIMINT |= 1 << irq;
+		LP8X4X_ENSYSINT |= 1 << irq;
+	}
+}
+
+static struct irq_chip lp8x4x_irq_chip = {
+	.name			= "FPGA",
+	.irq_ack		= lp8x4x_ack_irq,
+	.irq_mask		= lp8x4x_mask_irq,
+	.irq_unmask		= lp8x4x_unmask_irq,
+};
+
+static void lp8x4x_irq_handler(unsigned int irq, struct irq_desc *desc)
+{
+	int loop, n;
+	unsigned long mask;
+	struct irq_chip *chip = irq_desc_get_chip(desc);
+
+	chained_irq_enter(chip, desc);
+
+	do {
+		loop = 0;
+		mask = LP8X4X_CLRHILVINT & 0xff;
+		mask |= ((LP8X4X_SECOINT & 0x1f) << 8);
+		mask |= ((LP8X4X_PRIMINT & 0xe0) << 8);
+		mask &= (lp8x4x_irq_high_enabled
+				| (lp8x4x_irq_sys_enabled << 8));
+		for_each_set_bit(n, &mask, BITS_PER_LONG) {
+			loop = 1;
+
+			generic_handle_irq(IRQ_BOARD_START + n);
+		}
+	} while (loop);
+
+	chained_irq_exit(chip, desc);
+	LP8X4X_EOI = 0x0;
+}
+
+static void __init lp8x4x_init_irq(void)
+{
+	int irq;
+
+	for(irq = IRQ_BOARD_START; irq < LP8X4X_NR_IRQS; irq++) {
+		irq_set_chip_and_handler(irq, &lp8x4x_irq_chip,
+					 handle_level_irq);
+		set_irq_flags(irq, IRQF_VALID | IRQF_PROBE);
+	}
+
+	irq_set_chained_handler(PXA_GPIO_TO_IRQ(3), lp8x4x_irq_handler);
+	irq_set_irq_type(PXA_GPIO_TO_IRQ(3), IRQ_TYPE_EDGE_RISING);
+
+	LP8X4X_CLRRISEINT = 0;
+	LP8X4X_ENRISEINT = 0;
+	LP8X4X_CLRFALLINT = 0;
+	LP8X4X_ENFALLINT = 0;
+	LP8X4X_CLRHILVINT = 0;
+	LP8X4X_ENHILVINT = 0;
+	LP8X4X_ENSYSINT = 0;
+	LP8X4X_PRIMINT = 0;
+	LP8X4X_SECOINT = 0;
+
+	return;
+}
+
 static unsigned long lp8x4x_pin_config[] = {
 	/* MMC */
 	GPIO32_MMC_CLK,
@@ -286,8 +411,10 @@ static void __init lp8x4x_init(void)
 
 	pxa_set_mci_info(&lp8x4x_mci_platform_data);
 	pxa_set_ohci_info(&mainstone_ohci_platform_data);
-}
 
+	/* Could not do this in MACHINE since GPIO is not ready then */
+	lp8x4x_init_irq();
+}
 
 static struct map_desc lp8x4x_io_desc[] __initdata = {
   	{	/* CPLD */
