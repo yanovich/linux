@@ -211,6 +211,15 @@ config SERIAL_8250_HUB6
 	  To compile this driver as a module, choose M here: the module
 	  will be called 8250_hub6.
 
+config SERIAL_8250_LP8X4X
+	tristate "Support ports on ICP DAS LP-8x4x"
+	depends on SERIAL_8250 != n && SERIAL_8250_MANY_PORTS && MACH_LP8X4X
+	help
+	  If you plan to run this kernel on a LP-8x4x system, say Y or M
+	  here.
+
+	  If you choose M, the module will be called 8250_lp8x4x.
+
 #
 # Misc. options/drivers.
 #
