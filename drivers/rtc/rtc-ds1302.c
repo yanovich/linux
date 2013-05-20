@@ -23,8 +23,12 @@
 #define	RTC_CMD_READ	0x81		/* Read command */
 #define	RTC_CMD_WRITE	0x80		/* Write command */
 
+#define	RTC_CMD_WRITE_ENABLE	0x00		/* Write enable */
+#define	RTC_CMD_WRITE_DISABLE	0x80		/* Write disable */
+
 #define RTC_ADDR_RAM0	0x20		/* Address of RAM0 */
 #define RTC_ADDR_TCR	0x08		/* Address of trickle charge register */
+#define	RTC_ADDR_CTRL	0x07		/* Address of control register */
 #define	RTC_ADDR_YEAR	0x06		/* Address of year register */
 #define	RTC_ADDR_DAY	0x05		/* Address of day of week register */
 #define	RTC_ADDR_MON	0x04		/* Address of month register */
@@ -313,6 +317,7 @@ static int __init ds1302_rtc_probe(struct platform_device *pdev)
 		return PTR_ERR(rtc);
 
 	platform_set_drvdata(pdev, rtc);
+	ds1302_writebyte(RTC_ADDR_CTRL, RTC_CMD_WRITE_ENABLE);
 
 	return 0;
 }
@@ -321,6 +326,7 @@ static int ds1302_rtc_remove(struct platform_device *pdev)
 {
 	struct rtc_device *rtc = platform_get_drvdata(pdev);
 
+	ds1302_writebyte(RTC_ADDR_CTRL, RTC_CMD_WRITE_DISABLE);
 	rtc_device_unregister(rtc);
 	platform_set_drvdata(pdev, NULL);
 
