@@ -385,9 +385,9 @@ static struct platform_device *lp8x4x_devices[] __initdata = {
 	&lp8x4x_ds1302_device,
 };
 
-static struct pxaohci_platform_data mainstone_ohci_platform_data = {
+static struct pxaohci_platform_data lp8x4x_ohci_platform_data = {
 	.port_mode	= PMM_PERPORT_MODE,
-	.flags		= ENABLE_PORT_ALL | POWER_CONTROL_LOW | POWER_SENSE_LOW,
+	.flags		= ENABLE_PORT1 | OC_MODE_PERPORT,
 };
 
 static void __init lp8x4x_init(void)
@@ -410,7 +410,7 @@ static void __init lp8x4x_init(void)
 	pxa_set_fb_info(NULL, &lp8x4x_pxafb_info);
 
 	pxa_set_mci_info(&lp8x4x_mci_platform_data);
-	pxa_set_ohci_info(&mainstone_ohci_platform_data);
+	pxa_set_ohci_info(&lp8x4x_ohci_platform_data);
 
 	/* Could not do this in MACHINE since GPIO is not ready then */
 	lp8x4x_init_irq();
