@@ -31,4 +31,21 @@
 			dma-names = "rx", "tx";
 		};
 	};
+
+	extbus {
+		/*
+		 * PXA27x synchrous, static and
+		 * variable-latency IO interfaces
+		 */
+	        compatible = "simple-bus";
+
+		#address-cells = <2>; /* first cell is nCS, second is address */
+		#size-cells = <1>;
+		ranges = <0 0 0 0x04000000
+			  1 0 0x04000000 0x04000000
+			  2 0 0x08000000 0x04000000
+			  3 0 0x0c000000 0x04000000
+			  4 0 0x10000000 0x04000000
+			  5 0 0x14000000 0x04000000>;
+	};
 };
