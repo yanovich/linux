@@ -59,6 +59,10 @@ slot_count
 model
 	RO - shows expansion module model number
 
+input_status
+	RO - get status of digital input channels on the module in
+	     the expansion slot.
+
 output_status
 	RW - set status of digital output channels on the module in
 	     the expansion slot. Value can be read back.
