@@ -29,6 +29,8 @@ struct lp8x4x_slot {
 	struct mutex		lock;
 	unsigned int		DO_len;
 	u32			DO;
+	unsigned int		DI_len;
+	u32			DI;
 	struct device		dev;
 };
 
@@ -94,6 +96,21 @@ static void lp8x4x_slot_release(struct device *dev)
 {
 }
 
+static void lp8x4x_slot_get_DI(struct lp8x4x_slot *s)
+{
+	int i;
+	u32 b;
+
+	mutex_lock(&s->lock);
+	s->DI = 0;
+	for (i = 0; i < s->DI_len; i++) {
+		b = ioread8(s->data_addr + 2 * (i + 1));
+		b ^= 0xff;
+		s->DI += b << (i * 8);
+	}
+	mutex_unlock(&s->lock);
+}
+
 static void lp8x4x_slot_set_DO(struct lp8x4x_slot *s)
 {
 	int i;
@@ -103,29 +120,70 @@ static void lp8x4x_slot_set_DO(struct lp8x4x_slot *s)
 	mutex_unlock(&s->lock);
 }
 
+static ssize_t input_status_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_slot *s = container_of(dev, struct lp8x4x_slot, dev);
+
+	lp8x4x_slot_get_DI(s);
+	switch (s->DI_len) {
+	case 4:
+		return sprintf(buf, "0x%08x\n", s->DI);
+	case 2:
+		return sprintf(buf, "0x%04x\n", s->DI);
+	case 1:
+		return sprintf(buf, "0x%02x\n", s->DI);
+	default:
+		break;
+	}
+	return sprintf(buf, "0x%x\n", s->DI);
+}
+
+static DEVICE_ATTR_RO(input_status);
+
 static ssize_t output_status_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct lp8x4x_slot *s = container_of(dev, struct lp8x4x_slot, dev);
 
-	return sprintf(buf, "0x%08x\n", s->DO);
+	switch (s->DO_len) {
+	case 4:
+		return sprintf(buf, "0x%08x\n", s->DO);
+	case 2:
+		return sprintf(buf, "0x%04x\n", s->DO);
+	case 1:
+		return sprintf(buf, "0x%02x\n", s->DO);
+	default:
+		break;
+	}
+	return sprintf(buf, "0x%x\n", s->DO);
 }
 
 static ssize_t output_status_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct lp8x4x_slot *s = container_of(dev, struct lp8x4x_slot, dev);
+	u32 DO;
+	u8 *b = (void *) &DO;
+	int i;
 
 	if (!buf)
 		return count;
 	if (0 == count)
 		return count;
 
-	if (kstrtouint(buf, 16, &s->DO) != 0) {
+	if (kstrtouint(buf, 16, &DO) != 0) {
 		dev_err(dev, "bad input\n");
 		return count;
 	}
 
+	for (i = 4; i > s->DO_len; i--)
+		if (b[i - 1] != 0) {
+			dev_err(dev, "bad input\n");
+			return count;
+		}
+
+	s->DO = DO;
 	lp8x4x_slot_set_DO(s);
 
 	return count;
@@ -155,6 +213,14 @@ static struct attribute *do_slot_dev_attrs[] = {
 	NULL,
 };
 ATTRIBUTE_GROUPS(do_slot_dev);
+
+static struct attribute *dio_slot_dev_attrs[] = {
+	&dev_attr_model.attr,
+	&dev_attr_output_status.attr,
+	&dev_attr_input_status.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(dio_slot_dev);
 
 static void lp8x4x_master_release(struct device *dev)
 {
@@ -320,6 +386,12 @@ static void __init lp8x4x_bus_probe_slot(struct lp8x4x_master *m, int i,
 		s->DO_len = 4;
 		lp8x4x_slot_set_DO(s);
 		s->dev.groups = do_slot_dev_groups;
+		break;
+	case 42:
+		s->DI_len = 2;
+		s->DO_len = 2;
+		lp8x4x_slot_set_DO(s);
+		s->dev.groups = dio_slot_dev_groups;
 		break;
 	default:
 		s->dev.groups = slot_dev_groups;
