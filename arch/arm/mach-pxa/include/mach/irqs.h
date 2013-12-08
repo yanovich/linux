@@ -113,4 +113,6 @@ void ichp_handle_irq(struct pt_regs *);
 void pxa_init_irq(int irq_nr, int (*set_wake)(struct irq_data *, unsigned int));
 #endif
 
+extern void __init pxa_dt_irq_init(int (*fn)(struct irq_data *, unsigned int));
+
 #endif /* __ASM_MACH_IRQS_H */
