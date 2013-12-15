@@ -28,6 +28,9 @@ into the device, they could be accessed using the 2nd PXA built-in UART port
 (/dev/ttyS1). However, it seems that addresses are not processed by
 the modules. So the parallel bus needs to select which slot is connected.
 
+Parallel modules allow much faster communication. There are accessed using
+IO memory through the FPGA. Their ports are exposed via sysfs.
+
 SYSFS
 -----
 
@@ -50,3 +53,8 @@ rotary
 
 slot_count
 	RO - shows total number of expansion slots on the device
+
+/sys/bus/icpdas/devices/slot%02i:
+
+model
+	RO - shows expansion module model number
