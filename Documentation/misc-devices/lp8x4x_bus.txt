@@ -19,12 +19,25 @@ LP-8x4x is an ARM-based industrial computer with a custom parallel bus to
 connect expansion modules with digital input/output, analog input/output,
 serial, CAN and other types of ports.
 
-The bus is implemented by a FPGA.
+The bus is implemented by a FPGA. There are two major groups of expansion
+modules: serial and parallel.
+
+Serial modules (I-870xxW series) implement DCON protocol which allows one-
+master-many-slaves configuration over RS-485. When these modules are installed
+into the device, they could be accessed using the 2nd PXA built-in UART port
+(/dev/ttyS1). However, it seems that addresses are not processed by
+the modules. So the parallel bus needs to select which slot is connected.
 
 SYSFS
 -----
 
 /sys/bus/icpdas/devices/backplane:
+
+active_slot
+	RW - connects the select slot for serial communications. If there
+	     is a parallel module in the selected slot, it simply ignores
+	     incoming packets. So it is safe to activate any available
+	     slot.
 
 dip
 	RO - shows status of LP-8x4x 8bit DIP switch
