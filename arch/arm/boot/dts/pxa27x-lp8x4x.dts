@@ -167,6 +167,16 @@
 				reg = <0xa000 0x1000
 				       0x901e 0x1>;
 			};
+
+			fpgairq: irq@9006 {
+				compatible = "icpdas,irq-lp8x4x";
+				reg = <0x9006 0x16>;
+				interrupt-parent = <&gpio>;
+				interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				status = "okay";
+			};
 		};
 	};
 };
