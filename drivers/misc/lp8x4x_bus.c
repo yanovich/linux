@@ -8,6 +8,7 @@
  *  it under the terms of the GNU General Public License version 2 as
  *  published by the Free Software Foundation or any later version.
  */
+#include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/gpio/consumer.h>
 #include <linux/init.h>
@@ -23,6 +24,7 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sergei Ianovich <ynvich@gmail.com>");
 MODULE_DESCRIPTION("ICP DAS LP-8x4x parallel bus driver");
 
+#define LP8X4X_MAX_AO_CHANNELS	4
 struct lp8x4x_slot {
 	void			*data_addr;
 	unsigned int		model;
@@ -31,6 +33,8 @@ struct lp8x4x_slot {
 	u32			DO;
 	unsigned int		DI_len;
 	u32			DI;
+	unsigned int		AO_len;
+	u32			AO[LP8X4X_MAX_AO_CHANNELS];
 	struct device		dev;
 };
 
@@ -120,6 +124,26 @@ static void lp8x4x_slot_set_DO(struct lp8x4x_slot *s)
 	mutex_unlock(&s->lock);
 }
 
+static void lp8x4x_slot_reset_AO(struct lp8x4x_slot *s)
+{
+	int i;
+	mutex_lock(&s->lock);
+	for (i = 0; i < s->AO_len; i++)
+		s->AO[i] = 0x2000;
+	iowrite8(0x00, s->data_addr);
+	usleep_range(1, 2);
+	iowrite8(0xff, s->data_addr);
+	mutex_unlock(&s->lock);
+}
+
+static void lp8x4x_slot_set_AO(struct lp8x4x_slot *s, u32 val)
+{
+	mutex_lock(&s->lock);
+	iowrite8(val & 0xff, s->data_addr + 2);
+	iowrite8((val >> 8) & 0xff, s->data_addr + 4);
+	mutex_unlock(&s->lock);
+}
+
 static ssize_t input_status_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -191,6 +215,48 @@ static ssize_t output_status_store(struct device *dev,
 
 static DEVICE_ATTR_RW(output_status);
 
+static ssize_t analog_output_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_slot *s = container_of(dev, struct lp8x4x_slot, dev);
+	int i, c = 0;
+
+	for (i = 0; i < s->AO_len; i++)
+		c += sprintf(&buf[c], "0x%04x\n", s->AO[i]);
+	return c;
+}
+
+static ssize_t analog_output_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct lp8x4x_slot *s = container_of(dev, struct lp8x4x_slot, dev);
+	u32 AO;
+	int i;
+
+	if (!buf)
+		return count;
+	if (0 == count)
+		return count;
+
+	if (kstrtouint(buf, 16, &AO) != 0) {
+		dev_err(dev, "bad input\n");
+		return count;
+	}
+
+	if (AO & 0xffff0000) {
+		dev_err(dev, "bad input\n");
+		return count;
+	}
+
+	i = AO >> 14;
+	s->AO[i] = AO & 0x3fff;
+	lp8x4x_slot_set_AO(s, AO);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(analog_output);
+
 static ssize_t model_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -221,6 +287,13 @@ static struct attribute *dio_slot_dev_attrs[] = {
 	NULL,
 };
 ATTRIBUTE_GROUPS(dio_slot_dev);
+
+static struct attribute *ao_slot_dev_attrs[] = {
+	&dev_attr_model.attr,
+	&dev_attr_analog_output.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(ao_slot_dev);
 
 static void lp8x4x_master_release(struct device *dev)
 {
@@ -382,6 +455,11 @@ static void __init lp8x4x_bus_probe_slot(struct lp8x4x_master *m, int i,
 	mutex_init(&s->lock);
 
 	switch (model) {
+	case 24:
+		s->AO_len = 4;
+		lp8x4x_slot_reset_AO(s);
+		s->dev.groups = ao_slot_dev_groups;
+		break;
 	case 41:
 		s->DO_len = 4;
 		lp8x4x_slot_set_DO(s);

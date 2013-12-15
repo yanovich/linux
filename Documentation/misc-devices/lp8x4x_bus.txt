@@ -66,3 +66,18 @@ input_status
 output_status
 	RW - set status of digital output channels on the module in
 	     the expansion slot. Value can be read back.
+
+analog_output
+	RW - set status of analog output channels on the module in
+	     the expansion slot. Tested with voltage output. Bits 0-13:
+	     0x00c0 is -10.0V
+	     0x2000 is   0.0V
+	     0x3f40 is +10.0V
+
+	     So 1 unit of output is 1.25 mV.
+
+	     Bits 15 and 14 determine which channel to apply the value:
+	     0x0000 is channel 1
+	     0x4000 is channel 2
+	     0x8000 is channel 3
+	     0xc000 is channel 4
