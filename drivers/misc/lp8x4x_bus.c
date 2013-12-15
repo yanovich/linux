@@ -26,6 +26,9 @@ MODULE_DESCRIPTION("ICP DAS LP-8x4x parallel bus driver");
 struct lp8x4x_slot {
 	void			*data_addr;
 	unsigned int		model;
+	struct mutex		lock;
+	unsigned int		DO_len;
+	u32			DO;
 	struct device		dev;
 };
 
@@ -91,6 +94,45 @@ static void lp8x4x_slot_release(struct device *dev)
 {
 }
 
+static void lp8x4x_slot_set_DO(struct lp8x4x_slot *s)
+{
+	int i;
+	mutex_lock(&s->lock);
+	for (i = 0; i < s->DO_len; i++)
+		iowrite8((s->DO >> (i * 8)) & 0xff, s->data_addr + 2 * i);
+	mutex_unlock(&s->lock);
+}
+
+static ssize_t output_status_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_slot *s = container_of(dev, struct lp8x4x_slot, dev);
+
+	return sprintf(buf, "0x%08x\n", s->DO);
+}
+
+static ssize_t output_status_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct lp8x4x_slot *s = container_of(dev, struct lp8x4x_slot, dev);
+
+	if (!buf)
+		return count;
+	if (0 == count)
+		return count;
+
+	if (kstrtouint(buf, 16, &s->DO) != 0) {
+		dev_err(dev, "bad input\n");
+		return count;
+	}
+
+	lp8x4x_slot_set_DO(s);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(output_status);
+
 static ssize_t model_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -106,6 +148,13 @@ static struct attribute *slot_dev_attrs[] = {
 	NULL,
 };
 ATTRIBUTE_GROUPS(slot_dev);
+
+static struct attribute *do_slot_dev_attrs[] = {
+	&dev_attr_model.attr,
+	&dev_attr_output_status.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(do_slot_dev);
 
 static void lp8x4x_master_release(struct device *dev)
 {
@@ -242,8 +291,10 @@ static void devm_lp8x4x_bus_release(struct device *dev, void *res)
 	dev_dbg(dev, "releasing devices\n");
 	for (i = 0; i < LP8X4X_MAX_SLOT_COUNT; i++) {
 		s = &m->slot[i];
-		if (s->model)
+		if (s->model) {
 			device_unregister(&s->dev);
+			mutex_destroy(&s->lock);
+		}
 	}
 	device_unregister(&m->dev);
 	bus_unregister(&lp8x4x_bus_type);
@@ -261,13 +312,25 @@ static void __init lp8x4x_bus_probe_slot(struct lp8x4x_master *m, int i,
 	dev_set_name(&s->dev, "slot%02i", i + 1);
 	s->dev.parent = &m->dev;
 	s->dev.release = lp8x4x_slot_release;
-	s->dev.groups = slot_dev_groups;
 	s->model = model;
+	mutex_init(&s->lock);
+
+	switch (model) {
+	case 41:
+		s->DO_len = 4;
+		lp8x4x_slot_set_DO(s);
+		s->dev.groups = do_slot_dev_groups;
+		break;
+	default:
+		s->dev.groups = slot_dev_groups;
+		break;
+	};
 
 	err = device_register(&s->dev);
 	if (err < 0) {
 		dev_err(&s->dev, "failed to register device\n");
 		s->model = 0;
+		mutex_destroy(&s->lock);
 		return;
 	}
 }
