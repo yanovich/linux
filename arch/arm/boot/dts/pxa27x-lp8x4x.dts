@@ -202,6 +202,11 @@
 				interrupts = <15>;
 				status = "okay";
 			};
+
+			backplane {
+				compatible = "icpdas,backplane-lp8x4x";
+				reg = <0x9046 0x2>;
+			};
 		};
 	};
 };

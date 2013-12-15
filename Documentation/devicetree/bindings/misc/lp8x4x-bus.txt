@@ -1,0 +1,16 @@
+Custom parallel bus on ICP DAS LP-8x4x industrial computers
+
+See Documentation/misc-devices/lp8x4x_bus.txt for details.
+
+Required properties:
+- compatible : should be "icpdas,backplane-lp8x4x"
+
+- reg: physical base address of the slot count register and the length
+       of the memory mapped region.
+
+Example:
+
+	backplane {
+		compatible = "icpdas,backplane-lp8x4x";
+		reg = <0x17009046 0x2>;
+	};
