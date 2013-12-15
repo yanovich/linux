@@ -8,6 +8,7 @@ Required properties:
 - reg: physical base addresses and region lengths of
        * the rotary switch
        * the 8bit DIP switch
+       * the serial slot select register
        * the slot count register
 
 - eeprom-gpios : should point to active-low write enable GPIO
@@ -18,6 +19,7 @@ Example:
 		compatible = "icpdas,backplane-lp8x4x";
 		reg = <0x0 0x2
 		       0x9002 0x2
+		       0x9004 0x2
 		       0x9046 0x2>;
 		eeprom-gpios = <&gpio 4 0>;
 	};

@@ -207,6 +207,7 @@
 				compatible = "icpdas,backplane-lp8x4x";
 				reg = <0x0 0x2
 				       0x9002 0x2
+				       0x9004 0x2
 				       0x9046 0x2>;
 				eeprom-gpios = <&gpio 4 0>;
 			};
