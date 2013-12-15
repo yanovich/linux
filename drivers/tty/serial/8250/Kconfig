@@ -387,3 +387,15 @@ config SERIAL_8250_PXA
 	  can enable its onboard serial ports by enabling this option.
 
 	  If you choose M here, the module name will be 8250_pxa.
+
+config SERIAL_8250_LP8X4X
+	tristate "Support 16550A ports on ICP DAS LP-8x4x"
+	depends on OF && SERIAL_8250 && SERIAL_8250_MANY_PORTS && ARCH_PXA
+	select LP8X4X_IRQ
+	help
+	  In addition to serial ports on PXA270 SoC, LP-8x4x has 1 dual
+	  RS232/RS485 port, 1 RS485 port and 1 RS232 port.
+
+	  Say N here, unless you plan to run this kernel on a LP-8x4x system.
+
+	  If you choose M here, the module name will be 8250_lp8x4x.
