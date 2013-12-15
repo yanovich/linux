@@ -525,6 +525,19 @@ config VEXPRESS_SYSCFG
 	  bus. System Configuration interface is one of the possible means
 	  of generating transactions on this bus.
 
+config LP8X4X_BUS
+	tristate "ICP DAS LP-8x4x industrial IO bus"
+	depends on OF && ARCH_PXA
+	select SYSFS
+	---help---
+	  This is a driver for ICP DAS LP-8x4x programmable automation
+	  controller. It exposes a custom parallel bus. The bus services
+	  data acquisition and control modules.
+
+	  Say N, unless you plan to run this kernel on a LP-8x4x system.
+
+	  If you say M here, the module will be called lp8x4x_bus.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
