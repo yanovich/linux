@@ -155,6 +155,7 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges = <0 5 0x3000000 0x10000>;
+			interrupt-parent = <&fpgairq>;
 
 			rtc@901c {
 				compatible = "ds,rtc-ds1302";
@@ -175,6 +176,30 @@
 				interrupts = <3 IRQ_TYPE_EDGE_FALLING>;
 				#interrupt-cells = <1>;
 				interrupt-controller;
+				status = "okay";
+			};
+
+			uart@9050 {
+				compatible = "icpdas,uart-lp8x4x";
+				reg = <0x9050 0x10
+				       0x9030 0x02>;
+				interrupts = <13>;
+				status = "okay";
+			};
+
+			uart@9060 {
+				compatible = "icpdas,uart-lp8x4x";
+				reg = <0x9060 0x10
+				       0x9032 0x02>;
+				interrupts = <14>;
+				status = "okay";
+			};
+
+			uart@9070 {
+				compatible = "icpdas,uart-lp8x4x";
+				reg = <0x9070 0x10
+				       0x9034 0x02>;
+				interrupts = <15>;
 				status = "okay";
 			};
 		};
