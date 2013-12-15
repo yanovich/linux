@@ -149,5 +149,18 @@
 				status = "okay";
 			};
 		};
+
+		fpga@5 {
+			compatible = "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0 5 0x3000000 0x10000>;
+
+			rtc@901c {
+				compatible = "ds,rtc-ds1302";
+				reg = <0x901c 0x1>;
+				status = "okay";
+			};
+		};
 	};
 };
