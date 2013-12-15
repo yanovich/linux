@@ -29,6 +29,8 @@ struct lp8x4x_master {
 	void			*rotary_addr;
 	void			*dip_addr;
 	struct gpio_desc        *eeprom_nWE;
+	unsigned int		active_slot;
+	void			*switch_addr;
 	struct device		dev;
 };
 
@@ -46,6 +48,9 @@ static void lp8x4x_master_release(struct device *dev)
 {
 	struct lp8x4x_master *m = container_of(dev, struct lp8x4x_master, dev);
 	WARN_ON(!dev);
+
+	/* Disable serial communications */
+	iowrite8(0xff, m->switch_addr);
 
 	kfree(m);
 }
@@ -114,11 +119,52 @@ static ssize_t dip_show(struct device *dev,
 
 static DEVICE_ATTR_RO(dip);
 
+static ssize_t active_slot_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_master *m = container_of(dev, struct lp8x4x_master, dev);
+
+	return sprintf(buf, "%u\n", m->active_slot);
+}
+
+static ssize_t active_slot_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct lp8x4x_master *m = container_of(dev, struct lp8x4x_master, dev);
+	unsigned int active_slot = 0;
+	int err;
+
+	if (!buf)
+		return count;
+	if (0 == count)
+		return count;
+
+	err = kstrtouint(buf, 10, &active_slot);
+	if (err != 0 || active_slot > m->slot_count) {
+		dev_err(dev, "slot number is out of range 1..%u\n",
+				m->slot_count);
+		return count;
+	}
+
+	if (!active_slot) {
+		m->active_slot = 0;
+		iowrite8(0xff, m->switch_addr);
+		return count;
+	}
+
+	m->active_slot = active_slot;
+	iowrite8((1 << (m->active_slot - 1)) ^ 0xff, m->switch_addr);
+	return count;
+}
+
+static DEVICE_ATTR_RW(active_slot);
+
 static struct attribute *master_dev_attrs[] = {
 	&dev_attr_slot_count.attr,
 	&dev_attr_rotary.attr,
 	&dev_attr_eeprom_write_enable.attr,
 	&dev_attr_dip.attr,
+	&dev_attr_active_slot.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(master_dev);
@@ -181,6 +227,20 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, r++);
 	if (!res) {
+		dev_err(&pdev->dev, "Failed to get slot switch address\n");
+		err = -ENODEV;
+		goto err_free;
+	}
+
+	m->switch_addr = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(m->switch_addr)) {
+		dev_err(&pdev->dev, "Failed to ioremap switch address\n");
+		err = PTR_ERR(m->switch_addr);
+		goto err_free;
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, r++);
+	if (!res) {
 		dev_err(&pdev->dev, "could not get slot count address\n");
 		err = -ENODEV;
 		goto err_free;
@@ -222,6 +282,9 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 	};
 
 	dev_info(&pdev->dev, "found bus with up to %u slots\n", m->slot_count);
+
+	/* Disable serial communications until explicitly enabled */
+	iowrite8(0xff, m->switch_addr);
 
 	err = bus_register(&lp8x4x_bus_type);
 	if (err < 0) {
