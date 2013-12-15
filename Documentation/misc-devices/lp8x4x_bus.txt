@@ -1,0 +1,30 @@
+Kernel driver lpx8x4x_bus
+======================
+
+Supported hardare:
+Custom parallel bus on ICP DAS LP-8x4x industrial computers
+
+Data sheet:
+Not freely available
+
+Author:
+Sergei Ianovich <ynvich@gmail.com>
+
+Description
+-----------
+
+http://www.icpdas.com/root/product/solutions/pac/linpac/lp-8x4x_hardware.html
+
+LP-8x4x is an ARM-based industrial computer with a custom parallel bus to
+connect expansion modules with digital input/output, analog input/output,
+serial, CAN and other types of ports.
+
+The bus is implemented by a FPGA.
+
+SYSFS
+-----
+
+/sys/bus/icpdas/devices/backplane:
+
+slot_count
+	RO - shows total number of expansion slots on the device
