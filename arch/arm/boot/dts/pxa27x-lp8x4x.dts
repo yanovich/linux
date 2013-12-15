@@ -161,6 +161,12 @@
 				reg = <0x901c 0x1>;
 				status = "okay";
 			};
+
+			sram@a000 {
+				compatible = "icpdas,sram-lp8x4x";
+				reg = <0xa000 0x1000
+				       0x901e 0x1>;
+			};
 		};
 	};
 };
