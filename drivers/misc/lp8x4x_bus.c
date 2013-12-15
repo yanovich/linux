@@ -23,6 +23,13 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Sergei Ianovich <ynvich@gmail.com>");
 MODULE_DESCRIPTION("ICP DAS LP-8x4x parallel bus driver");
 
+struct lp8x4x_slot {
+	void			*data_addr;
+	unsigned int		model;
+	struct device		dev;
+};
+
+#define LP8X4X_MAX_SLOT_COUNT	8
 struct lp8x4x_master {
 	unsigned int		slot_count;
 	void			*count_addr;
@@ -31,7 +38,43 @@ struct lp8x4x_master {
 	struct gpio_desc        *eeprom_nWE;
 	unsigned int		active_slot;
 	void			*switch_addr;
+	struct lp8x4x_slot	slot[LP8X4X_MAX_SLOT_COUNT];
 	struct device		dev;
+};
+
+static unsigned char lp8x4x_model[256] = {
+	   0,    0,    0, 0x11,    0, 0x18, 0x13, 0x11,
+	0x0e, 0x11,    0,    0,    0, 0x5a, 0x5b, 0x5c,
+	0x3c, 0x44, 0x34, 0x3a, 0x39, 0x36, 0x37, 0x33,
+	0x35, 0x40, 0x41, 0x42, 0x38, 0x3f, 0x32, 0x45,
+	0xac, 0x70, 0x8e, 0x8e, 0x1e, 0x72, 0x90, 0x29,
+	0x4a, 0x22, 0xd3, 0xd2, 0x28, 0x25, 0x2a, 0x29,
+	0x48, 0x49, 0x5d, 0x1f, 0x20, 0x23, 0x24, 0x4d,
+	0x3d, 0x3e,    0,    0,    0,    0,    0,    0,
+	   0, 0x78, 0x72, 0x2b, 0x5e, 0x5e, 0x36, 0xae,
+	0x30,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0, 0x5c, 0x5e,    0, 0x5e,    0,    0,
+	   0, 0x3b,    0,    0,    0,    0,    0,    0,
+	   0, 0x50, 0x2e,    0, 0x58,    0,    0, 0x43,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0, 0x54,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0,
+	   0,    0,    0,    0,    0,    0,    0,    0
 };
 
 static int lp8x4x_match(struct device *dev, struct device_driver *drv)
@@ -43,6 +86,26 @@ static struct bus_type lp8x4x_bus_type = {
 	.name		= "icpdas",
 	.match		= lp8x4x_match,
 };
+
+static void lp8x4x_slot_release(struct device *dev)
+{
+}
+
+static ssize_t model_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_slot *s = container_of(dev, struct lp8x4x_slot, dev);
+
+	return sprintf(buf, "%u\n", s->model + 8000);
+}
+
+static DEVICE_ATTR_RO(model);
+
+static struct attribute *slot_dev_attrs[] = {
+	&dev_attr_model.attr,
+	NULL,
+};
+ATTRIBUTE_GROUPS(slot_dev);
 
 static void lp8x4x_master_release(struct device *dev)
 {
@@ -173,10 +236,40 @@ ATTRIBUTE_GROUPS(master_dev);
 static void devm_lp8x4x_bus_release(struct device *dev, void *res)
 {
 	struct lp8x4x_master *m = *(struct lp8x4x_master **)res;
+	struct lp8x4x_slot *s;
+	int i;
 
 	dev_dbg(dev, "releasing devices\n");
+	for (i = 0; i < LP8X4X_MAX_SLOT_COUNT; i++) {
+		s = &m->slot[i];
+		if (s->model)
+			device_unregister(&s->dev);
+	}
 	device_unregister(&m->dev);
 	bus_unregister(&lp8x4x_bus_type);
+}
+
+static void __init lp8x4x_bus_probe_slot(struct lp8x4x_master *m, int i,
+		unsigned char model)
+{
+	struct lp8x4x_slot *s = &m->slot[i];
+	int err;
+
+	dev_info(&m->dev, "found %u in slot %i\n", 8000 + model, i + 1);
+
+	s->dev.bus = &lp8x4x_bus_type;
+	dev_set_name(&s->dev, "slot%02i", i + 1);
+	s->dev.parent = &m->dev;
+	s->dev.release = lp8x4x_slot_release;
+	s->dev.groups = slot_dev_groups;
+	s->model = model;
+
+	err = device_register(&s->dev);
+	if (err < 0) {
+		dev_err(&s->dev, "failed to register device\n");
+		s->model = 0;
+		return;
+	}
 }
 
 static int __init lp8x4x_bus_probe(struct platform_device *pdev)
@@ -184,7 +277,9 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 	struct lp8x4x_master *m, **p;
 	struct resource *res;
 	int r = 0;
+	int i;
 	int err = 0;
+	unsigned int model;
 
 	m = kzalloc(sizeof(*m), GFP_KERNEL);
 	if (!m)
@@ -209,6 +304,23 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to ioremap rotary address\n");
 		err = PTR_ERR(m->rotary_addr);
 		goto err_free;
+	}
+
+	for (i = 0; i < LP8X4X_MAX_SLOT_COUNT; i++) {
+		res = platform_get_resource(pdev, IORESOURCE_MEM, r++);
+		if (!res) {
+			dev_err(&pdev->dev, "Failed to get slot %i address\n",
+					i);
+			err = -ENODEV;
+			goto err_free;
+		}
+
+		m->slot[i].data_addr = devm_ioremap_resource(&pdev->dev, res);
+		if (IS_ERR(m->slot[i].data_addr)) {
+			dev_err(&pdev->dev, "Failed to ioremap slot %i\n", i);
+			err = PTR_ERR(m->slot[i].data_addr);
+			goto err_free;
+		}
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, r++);
@@ -305,6 +417,13 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 	}
 
 	devres_add(&pdev->dev, p);
+	for (i = 0; i < LP8X4X_MAX_SLOT_COUNT; i++) {
+		model = lp8x4x_model[ioread8(m->slot[i].data_addr)];
+		if (!model)
+			continue;
+
+		lp8x4x_bus_probe_slot(m, i, model);
+	}
 	return 0;
 
 err_bus:
