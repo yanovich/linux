@@ -9,6 +9,7 @@
  *  published by the Free Software Foundation or any later version.
  */
 #include <linux/err.h>
+#include <linux/gpio/consumer.h>
 #include <linux/init.h>
 #include <linux/io.h>
 #include <linux/list.h>
@@ -27,6 +28,7 @@ struct lp8x4x_master {
 	void			*count_addr;
 	void			*rotary_addr;
 	void			*dip_addr;
+	struct gpio_desc        *eeprom_nWE;
 	struct device		dev;
 };
 
@@ -68,6 +70,40 @@ static ssize_t rotary_show(struct device *dev,
 
 static DEVICE_ATTR_RO(rotary);
 
+static ssize_t eeprom_write_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_master *m = container_of(dev, struct lp8x4x_master, dev);
+
+	return sprintf(buf, "%u\n", !gpiod_get_value(m->eeprom_nWE));
+}
+
+static ssize_t eeprom_write_enable_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct lp8x4x_master *m = container_of(dev, struct lp8x4x_master, dev);
+	unsigned int val = 0;
+	int err;
+
+	if (!buf)
+		return count;
+
+	if (0 == count)
+		return count;
+
+	err = kstrtouint(buf, 10, &val);
+	if (err != 0) {
+		dev_err(dev, "Bad input %s\n", buf);
+		return count;
+	}
+
+	gpiod_set_value(m->eeprom_nWE, !val);
+
+	return count;
+}
+
+static DEVICE_ATTR_RW(eeprom_write_enable);
+
 static ssize_t dip_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -81,6 +117,7 @@ static DEVICE_ATTR_RO(dip);
 static struct attribute *master_dev_attrs[] = {
 	&dev_attr_slot_count.attr,
 	&dev_attr_rotary.attr,
+	&dev_attr_eeprom_write_enable.attr,
 	&dev_attr_dip.attr,
 	NULL,
 };
@@ -153,6 +190,19 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 	if (IS_ERR(m->count_addr)) {
 		dev_err(&pdev->dev, "Failed to ioremap slot count address\n");
 		err = PTR_ERR(m->count_addr);
+		goto err_free;
+	}
+
+	m->eeprom_nWE = devm_gpiod_get(&pdev->dev, "eeprom", GPIOD_ASIS);
+	if (IS_ERR(m->eeprom_nWE)) {
+		err = PTR_ERR(m->eeprom_nWE);
+		dev_err(&pdev->dev, "Failed to get eeprom GPIO\n");
+		goto err_free;
+	}
+
+	err = gpiod_direction_output(m->eeprom_nWE, 1);
+	if (err < 0) {
+		dev_err(&pdev->dev, "Failed to set eeprom GPIO output\n");
 		goto err_free;
 	}
 
