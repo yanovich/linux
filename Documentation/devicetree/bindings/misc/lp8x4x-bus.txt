@@ -7,6 +7,7 @@ Required properties:
 
 - reg: physical base addresses and region lengths of
        * the rotary switch
+       * the 8bit DIP switch
        * the slot count register
 
 Example:
@@ -14,5 +15,6 @@ Example:
 	backplane {
 		compatible = "icpdas,backplane-lp8x4x";
 		reg = <0x0 0x2
+		       0x9002 0x2
 		       0x9046 0x2>;
 	};
