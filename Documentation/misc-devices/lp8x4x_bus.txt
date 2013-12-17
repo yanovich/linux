@@ -26,6 +26,9 @@ SYSFS
 
 /sys/bus/icpdas/devices/backplane:
 
+dip
+	RO - shows status of LP-8x4x 8bit DIP switch
+
 rotary
 	RO - shows position of LP-8x4x rotary switch (0-9)
 
