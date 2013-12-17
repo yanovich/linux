@@ -26,6 +26,7 @@ struct lp8x4x_master {
 	unsigned int		slot_count;
 	void			*count_addr;
 	void			*rotary_addr;
+	void			*dip_addr;
 	struct device		dev;
 };
 
@@ -67,9 +68,20 @@ static ssize_t rotary_show(struct device *dev,
 
 static DEVICE_ATTR_RO(rotary);
 
+static ssize_t dip_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_master *m = container_of(dev, struct lp8x4x_master, dev);
+
+	return sprintf(buf, "0x%02x\n", ioread8(m->dip_addr) ^ 0xff);
+}
+
+static DEVICE_ATTR_RO(dip);
+
 static struct attribute *master_dev_attrs[] = {
 	&dev_attr_slot_count.attr,
 	&dev_attr_rotary.attr,
+	&dev_attr_dip.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(master_dev);
@@ -113,6 +125,20 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 	if (IS_ERR(m->rotary_addr)) {
 		dev_err(&pdev->dev, "Failed to ioremap rotary address\n");
 		err = PTR_ERR(m->rotary_addr);
+		goto err_free;
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, r++);
+	if (!res) {
+		dev_err(&pdev->dev, "Failed to get DIP switch address\n");
+		err = -ENODEV;
+		goto err_free;
+	}
+
+	m->dip_addr = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(m->dip_addr)) {
+		dev_err(&pdev->dev, "Failed to ioremap DIP switch address\n");
+		err = PTR_ERR(m->dip_addr);
 		goto err_free;
 	}
 
