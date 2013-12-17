@@ -10,6 +10,8 @@ Required properties:
        * the 8bit DIP switch
        * the slot count register
 
+- eeprom-gpios : should point to active-low write enable GPIO
+
 Example:
 
 	backplane {
@@ -17,4 +19,5 @@ Example:
 		reg = <0x0 0x2
 		       0x9002 0x2
 		       0x9046 0x2>;
+		eeprom-gpios = <&gpio 4 0>;
 	};
