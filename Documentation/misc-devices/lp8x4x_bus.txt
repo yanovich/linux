@@ -29,6 +29,9 @@ SYSFS
 dip
 	RO - shows status of LP-8x4x 8bit DIP switch
 
+eeprom_write_enable
+	RW - controls write access to board's EEPROM (1 - enable)
+
 rotary
 	RO - shows position of LP-8x4x rotary switch (0-9)
 
