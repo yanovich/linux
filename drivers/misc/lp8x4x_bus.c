@@ -25,6 +25,7 @@ MODULE_DESCRIPTION("ICP DAS LP-8x4x parallel bus driver");
 struct lp8x4x_master {
 	unsigned int		slot_count;
 	void			*count_addr;
+	void			*rotary_addr;
 	struct device		dev;
 };
 
@@ -56,8 +57,19 @@ static ssize_t slot_count_show(struct device *dev,
 
 static DEVICE_ATTR_RO(slot_count);
 
+static ssize_t rotary_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct lp8x4x_master *m = container_of(dev, struct lp8x4x_master, dev);
+
+	return sprintf(buf, "%u\n", (ioread8(m->rotary_addr) ^ 0xf) & 0xf);
+}
+
+static DEVICE_ATTR_RO(rotary);
+
 static struct attribute *master_dev_attrs[] = {
 	&dev_attr_slot_count.attr,
+	&dev_attr_rotary.attr,
 	NULL,
 };
 ATTRIBUTE_GROUPS(master_dev);
@@ -76,6 +88,7 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 {
 	struct lp8x4x_master *m, **p;
 	struct resource *res;
+	int r = 0;
 	int err = 0;
 
 	m = kzalloc(sizeof(*m), GFP_KERNEL);
@@ -89,18 +102,32 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 	}
 	*p = m;
 
-	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, r++);
+	if (!res) {
+		dev_err(&pdev->dev, "Failed to get rotary address\n");
+		err = -ENODEV;
+		goto err_free;
+	}
+
+	m->rotary_addr = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(m->rotary_addr)) {
+		dev_err(&pdev->dev, "Failed to ioremap rotary address\n");
+		err = PTR_ERR(m->rotary_addr);
+		goto err_free;
+	}
+
+	res = platform_get_resource(pdev, IORESOURCE_MEM, r++);
 	if (!res) {
 		dev_err(&pdev->dev, "could not get slot count address\n");
 		err = -ENODEV;
-		goto err2;
+		goto err_free;
 	}
 
 	m->count_addr = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(m->count_addr)) {
 		dev_err(&pdev->dev, "Failed to ioremap slot count address\n");
 		err = PTR_ERR(m->count_addr);
-		goto err2;
+		goto err_free;
 	}
 
 	m->slot_count = ioread8(m->count_addr);
@@ -115,7 +142,7 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "unexpected slot number(%u)",
 				m->slot_count);
 		err = -ENODEV;
-		goto err2;
+		goto err_free;
 	};
 
 	dev_info(&pdev->dev, "found bus with up to %u slots\n", m->slot_count);
@@ -123,7 +150,7 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 	err = bus_register(&lp8x4x_bus_type);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to register bus type\n");
-		goto err2;
+		goto err_free;
 	}
 
 	m->dev.bus = &lp8x4x_bus_type;
@@ -135,15 +162,15 @@ static int __init lp8x4x_bus_probe(struct platform_device *pdev)
 	err = device_register(&m->dev);
 	if (err < 0) {
 		dev_err(&pdev->dev, "failed to register backplane device\n");
-		goto err3;
+		goto err_bus;
 	}
 
 	devres_add(&pdev->dev, p);
 	return 0;
 
-err3:
+err_bus:
 	bus_unregister(&lp8x4x_bus_type);
-err2:
+err_free:
 	devres_free(p);
 err1:
 	kfree(m);
