@@ -5,12 +5,14 @@ See Documentation/misc-devices/lp8x4x_bus.txt for details.
 Required properties:
 - compatible : should be "icpdas,backplane-lp8x4x"
 
-- reg: physical base address of the slot count register and the length
-       of the memory mapped region.
+- reg: physical base addresses and region lengths of
+       * the rotary switch
+       * the slot count register
 
 Example:
 
 	backplane {
 		compatible = "icpdas,backplane-lp8x4x";
-		reg = <0x17009046 0x2>;
+		reg = <0x0 0x2
+		       0x9046 0x2>;
 	};
