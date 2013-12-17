@@ -26,5 +26,8 @@ SYSFS
 
 /sys/bus/icpdas/devices/backplane:
 
+rotary
+	RO - shows position of LP-8x4x rotary switch (0-9)
+
 slot_count
 	RO - shows total number of expansion slots on the device
