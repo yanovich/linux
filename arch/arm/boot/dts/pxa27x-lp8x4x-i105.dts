@@ -20,8 +20,12 @@
 				reg = <0x40000 0x40000>;
 			};
 			fs@80000 {
+				label = "device_tree";
+				reg = <0x80000 0x40000>;
+			};
+			fs@c0000 {
 				label = "kernel";
-				reg = <0x80000 0x300000>;
+				reg = <0xc0000 0x2c0000>;
 			};
 			fs@300000 {
 				label = "root_fs";
